@@ -36,16 +36,28 @@ class Handler(Extract, GetPages):
     def getpages(self, searchquery):
         url = f'https://www.cbc.gov.tw/en/lp-495-2.html'
         tree = self.get_tree(url, headers=self.header)
-        links = tree.xpath(f'//table[@class="rwd-table"]//a/text()[contains(., "{searchquery}")]/../@href')
-        if links:
-            links = [self.base_url + i for i in links]
+        link_list = self.get_by_xpath(tree, '//table[@class="rwd-table"]//a/@href', return_list=True)
         company_names = []
-        for link in links:
-            tree = self.get_tree(link, headers=self.header)
-            temp_names = tree.xpath('//section[@class="cp"]//tr//td[2]/a/text()')
-            for temp_name in temp_names:
-                company_names.append(link + '?=' + temp_name)
+        if link_list:
+            link_list = [self.base_url + i for i in link_list]
+            for link in link_list:
+                tree = self.get_tree(link, headers=self.header)
+                rows = self.get_by_xpath(tree,
+                                          '//section[@class="cp"]//tr/td[2]',
+                                          return_list=True)
+
+                for row in range(len(rows)):
+                    name = self.get_by_xpath(tree,
+                                              f'//section[@class="cp"]//tr[{row + 2}]/td[2]/a/text()')
+
+                    if not name:
+                        name = self.get_by_xpath(tree,
+                                                  f'//section[@class="cp"]//tr[{row + 2}]/td[2]/text()[1]')
+
+                    if searchquery in name:
+                        company_names.append(link + '?=' + name)
         return company_names
+
 
     def get_business_classifier(self, tree):
         business_classifier = self.get_by_xpath(tree,
@@ -155,50 +167,6 @@ class Handler(Extract, GetPages):
         address = self.get_address(tree, base_xpath)
         if address: company['mdaas:RegisteredAddress'] = address
 
-        #
-        #
-        # self.check_create(tree,
-        #                   '//td[@class="bt"]/text()[contains(., "Business e-mail address:")]/../following-sibling::td/text()',
-        #                   'bst:email', company)
-        #
-        #
-        #
-        # address = self.get_address(tree)
-        # if address: company['mdaas:RegisteredAddress'] = address
-        #
-        # foundation = self.get_by_xpath(tree,
-        #                                '//td[@class="bt"]/text()[contains(., "Date of Formation:")]/../following-sibling::td/text()')
-        #
-        # if foundation: company['hasLatestOrganizationFoundedDate'] = self.reformat_date(foundation, '%b %d %Y')
-        #
-        # self.check_create(tree,
-        #                   '//td[@class="bt"]/text()[contains(., "Telephone Number:")]/../following-sibling::td/text()',
-        #                   'r-org:hasRegisteredPhoneNumber',
-        #                   company)
-        #
-        # self.check_create(tree,
-        #                   '//td[@class="bt"]/text()[contains(., "Jurisdiction Where Formed:")]/../following-sibling::td/text()',
-        #                   'registeredIn',
-        #                   company)
-        #
-        # self.check_create(tree, '//td[@class="bt"]/text()[contains(., "Fax Number:")]/../following-sibling::td/text()',
-        #                   'hasRegisteredFaxNumber',
-        #                   company)
-        #
-        # stock = self.get_stock(tree)
-        # if stock: company['bst:stock_info'] = stock
-        #
-        # identifiers = self.get_by_xpath(tree,
-        #                                 '//td[@class="bt"]/text()[contains(., "CUSIP Number:")]/../following-sibling::td/text()')
-        # if identifiers and identifiers != 'Transfer Agent:':
-        #     company['identifiers'] = {'other_company_id_number': identifiers}
-        #
-        #
-        #
-        #
-        # postal = self.get_address(tree, postal=True)
-        # if postal:
-        #     company['mdaas:PostalAddress'] = postal
         company['@source-id'] = self.NICK_NAME
 
         return company
